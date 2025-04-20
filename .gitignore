@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 /model.jsx
+
+package-lock.json
+
+/node_modules
