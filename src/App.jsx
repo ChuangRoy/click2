@@ -292,8 +292,6 @@ class App {
         );
     };
 
-
-
     static Main = () => {
         const navigate = useNavigate();
         const [hasRedirected, setHasRedirected] = useState(false);
