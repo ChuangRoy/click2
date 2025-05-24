@@ -8,11 +8,11 @@ const WIDTH = 800;
 const HEIGHT = 100;
 
 const playSounds1 = () => {
-    const sound1 = new Audio("/assets/beats1.mp3");
+    const sound1 = new Audio("/src/assets/beats1.mp3");
     sound1.cloneNode(true).play();
 };
 const playSounds2 = () => {
-    const sound2 = new Audio("/assets/beats2.mp3");
+    const sound2 = new Audio("/src/assets/beats2.mp3");
     sound2.cloneNode(true).play();
 };
 
