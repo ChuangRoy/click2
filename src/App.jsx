@@ -59,6 +59,8 @@ class App {
                 App.setBars(barsInput);
                 App.setOffset(OffsetInput)
                 App.millisecondsPerBeat = (60 / App.bpm) * 1000;
+                this.score = 0;
+                this.hits = [];
                 navigate("/TapTest");
             }
         };
@@ -119,7 +121,7 @@ class App {
                     beatCount++;
                     addLine({ color: 'red', x: WIDTH });
                     if (beatCount > 0) {
-                        addHit({ color: 'red', x: (beatCount / (bars * 4)) * WIDTH});
+                        addHit({ color: 'red', x: (beatCount / (bars * 4)) * WIDTH });
                     }
                     setCurrentBeat((prev) => prev + 1);
                 }, millisecondsPerBeat);
@@ -184,14 +186,17 @@ class App {
                 tapTime += this.offset;
                 const expectedTime = startTimeRef.current + currentBeat * millisecondsPerBeat;
                 let err = tapTime - expectedTime;
+                while (err < -millisecondsPerBeat / 2) err += millisecondsPerBeat;
+                while (err > millisecondsPerBeat / 2) err -= millisecondsPerBeat;
+                err = Number(err.toFixed(2));
                 addLine({ color: 'green', x: WIDTH });
-                addHit({ color: 'green', x : (tapTime - startTimeRef.current) / totalTime * WIDTH });
+                addHit({ color: 'green', x: (tapTime - startTimeRef.current) / totalTime * WIDTH });
                 setDeviation((prev) => [...prev, err]);
                 setCount(count + 1);
                 console.log(`偏差：${err} 毫秒`);
-                if (Math.abs(err) < 80) {
+                if (Math.abs(err) < 40) {
                     this.score += scoreEachNote;
-                } else if (Math.abs(err) < 300) {
+                } else if (Math.abs(err) < 80) {
                     this.score += scoreEachNote * 0.65;
                 } else {
                     this.score -= scoreEachNote;
@@ -207,7 +212,7 @@ class App {
         }, [startTime, currentBeat, millisecondsPerBeat]);
 
         useEffect(() => {
-            if (currentBeat >= bars * 4) {
+            if (currentBeat >= bars * 4 + 1) {
                 alert("TIME'S UP!");
                 isRunningRef.current = false;
                 setIsRunning(isRunningRef.current);
@@ -241,17 +246,44 @@ class App {
     };
 
     static Result = () => {
+        const navigate = useNavigate();
         const canvasRef = useRef();
-        // console.log(this.hits);
-        this.hits.forEach((line) => {
-            drawLine(canvasRef, line, true);
-            console.log("drawing line", line);
-        });
+
+        if (App.score > 100) {
+            App.score = 100;
+        }
+        if (App.score < 0) {
+            App.score = 0;
+        }
+
+        useEffect(() => {
+            App.hits.forEach((line) => {
+                drawLine(canvasRef, line);
+            });
+        }, []);
+
+        const StartAgain = () => {
+            this.score = 0;
+            this.hits = [];
+            navigate("/TapTest");
+        }
+
+        const NumberText = ({ value }) => {
+            const getColor = (num) => {
+                if (num > 70) return "green";
+                if (num > 50) return "orange";
+                return "red";
+            };
+            return <span style={{ color: getColor(value) }}>{value}</span>;
+        }
+
         return (
             <>
                 <div>
                     <h1>YOUR SCORE IS...?</h1>
-                    <h1>{this.score < 0? 0 : this.score}</h1>
+                    <h1><NumberText value={App.score < 0 ? 0 : App.score} /></h1>
+                    <button onClick={() => navigate("/Home")}>go home</button>
+                    <button onClick={StartAgain}>test again</button>
                 </div>
                 <div>
                     <Canvas ref={canvasRef} width={WIDTH} height={HEIGHT} />
@@ -259,6 +291,8 @@ class App {
             </>
         );
     };
+
+
 
     static Main = () => {
         const navigate = useNavigate();
@@ -272,7 +306,7 @@ class App {
         }, [hasRedirected, navigate]);
 
         return (
-            <React.Fragment>
+            <>
                 <div className="App">
                     <Routes>
                         <Route exact path="/" element={<div />} />
@@ -281,7 +315,7 @@ class App {
                         <Route path="/result" element={<App.Result />} />
                     </Routes>
                 </div>
-            </React.Fragment>
+            </>
         );
     };
 }
