@@ -26,8 +26,10 @@ const Canvas = forwardRef((props, ref) => {
             ctx.fillRect(x, y, w, h);
         },
 
-        drawLine: (x1, y1, x2, y2, color = 'black', width = 4) => {
-            console.log("drawing line", x1, y1, x2, y2, color, width);
+        drawLine: (x1, y1, x2, y2, color = 'black', width = 4, debug = false) => {
+            if (debug) {
+                console.log("drawing line", x1, y1, x2, y2, color, width);
+            }
             const ctx = canvasRef.current.getContext('2d');
             ctx.beginPath();
             ctx.moveTo(x1, y1);

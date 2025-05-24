@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, use } from "react";
 import { Route, Routes, useNavigate } from "react-router-dom";
 // import ReactMarkdown from "react-markdown";
 import "./App.css";
@@ -16,14 +16,19 @@ const playSounds2 = () => {
     sound2.cloneNode(true).play();
 };
 
-const drawLine = (canvasRef, line) => {
-    canvasRef.current.drawLine(line.x, 10, line.x, HEIGHT , line.color);
+const drawLine = (canvasRef, line, debug = false) => {
+    if (canvasRef.current) {
+        canvasRef.current.drawLine(line.x, 0, line.x, HEIGHT, line.color, 4, debug);
+    }
 }
 
 class App {
     static bpm = 0;
     static bars = 0;
     static score = 0;
+    static offset = 0;
+    static hits = [];
+    static millisecondsPerBeat = 0;
 
     static setBpm(value) {
         App.bpm = parseInt(value, 10);
@@ -33,12 +38,8 @@ class App {
         App.bars = parseInt(value, 10);
     }
 
-    static resetScore() {
-        App.score = 0;
-    }
-
-    static addToScore(value) {
-        App.score += value;
+    static setOffset(value) {
+        App.offset = parseInt(value, 10);
     }
 
     static Home = () => {
@@ -47,54 +48,64 @@ class App {
         const handleStartTest = () => {
             const bpmInput = document.getElementById("bpm").value;
             const barsInput = document.getElementById("bars").value;
-
-            App.setBpm(bpmInput);
-            App.setBars(barsInput);
+            const OffsetInput = document.getElementById("offset").value;
 
             if (bpmInput > 1500 || barsInput > 100) {
                 alert("數值太大，請重新輸入")
-            }
-            else if (bpmInput <= 0 || barsInput <= 0) {
+            } else if (bpmInput <= 0 || barsInput <= 0) {
                 alert("數值不合法，請重新輸入")
+            } else {
+                App.setBpm(bpmInput);
+                App.setBars(barsInput);
+                App.setOffset(OffsetInput)
+                App.millisecondsPerBeat = (60 / App.bpm) * 1000;
+                navigate("/TapTest");
             }
-            else navigate("/TapTest");
         };
 
         return (
-            <div>
+            <>
                 <h1 className="fade">敲擊穩定度測試</h1>
                 <p className="fade">
                     本網頁可用來測試手的敲擊穩定度，並且有不同速度與時長的選擇，請輸入一個BPM與小節數，並開始進行測試
                 </p>
                 <div>
                     <label htmlFor="bpm">輸入BPM &#40; &lt;1500 &#41; : </label>
-                    <input type="number" id="bpm" name="bpm" placeholder="例如：120" />
+                    <input type="number" id="bpm" name="bpm" placeholder="例如 : 120" defaultValue={120} />
                 </div>
                 <div>
                     <label htmlFor="bars">輸入小節數 &#40; &lt;100 &#41; : </label>
-                    <input type="number" id="bars" name="bars" placeholder="例如：4" />
+                    <input type="number" id="bars" name="bars" placeholder="例如 : 4" defaultValue={4} />
+                </div>
+                <div>
+                    <label htmlFor="offset">輸入延遲 &#40; ms &#41; : </label>
+                    <input type="number" id="offset" name="offset" placeholder="單位 : ms" defaultValue={0} />
                 </div>
                 <button onClick={handleStartTest}>開始測試</button>
-            </div>
+            </>
         );
     };
 
     static TapTest = () => {
         const canvasRef = useRef();
         const navigate = useNavigate();
-        const [lines, setLines] = useState([]);
+        const frameID = useRef(null);
+        const lines = useRef([]);
+        const isRunningRef = useRef(false);
         const [currentBeat, setCurrentBeat] = useState(-3);
         const [count, setCount] = useState(0);
         const [startTime, setStartTime] = useState(null);
         const [deviation, setDeviation] = useState([]);
         const [isRunning, setIsRunning] = useState(false);
         const [startMessage, setStartMessage] = useState("beats");
+        const startTimeRef = useRef(null);
         let beatCount = -3;
-        const intervalRef = useRef(null);
+        const scoreEachNote = 100 / (App.bars * 4);
 
         const bpm = App.bpm;
         const bars = App.bars;
-        const millisecondsPerBeat = (60 / bpm) * 1000;
+        const millisecondsPerBeat = App.millisecondsPerBeat;
+        const totalTime = millisecondsPerBeat * bars * 4;
 
         useEffect(() => {
             let interval;
@@ -106,6 +117,10 @@ class App {
                         playSounds2();
                     }
                     beatCount++;
+                    addLine({ color: 'red', x: WIDTH });
+                    if (beatCount > 0) {
+                        addHit({ color: 'red', x: (beatCount / (bars * 4)) * WIDTH});
+                    }
                     setCurrentBeat((prev) => prev + 1);
                 }, millisecondsPerBeat);
             }
@@ -117,55 +132,70 @@ class App {
             else setStartMessage("beats");
         }, [currentBeat]);
 
-        const handleAnimation = () => {
-            lines.forEach((line) => {
-                drawLine(canvasRef, line);
-            });
-            setLines(lines.map((line) => ({
-                ...line,
-                x: line.x - 10
-            })));
-        }
+        let lastTimestamp = 0;
+
+        const handleAnimation = (timestamp) => {
+            if (!isRunningRef.current) return;
+            if (timestamp - lastTimestamp >= 10) {
+                lastTimestamp = timestamp;
+                // console.log(`Animation Running, frameID = ${frameID.current}`);
+                if (canvasRef.current) {
+                    canvasRef.current.clear();
+                }
+                lines.current = lines.current.map((line) => ({
+                    ...line,
+                    x: line.x - 10
+                }));
+                lines.current = lines.current.filter((line) => line.x >= 0);
+                lines.current.forEach((line) => {
+                    drawLine(canvasRef, line);
+                });
+            }
+            frameID.current = window.requestAnimationFrame(handleAnimation);
+        };
 
         const handleStart = () => {
-            setIsRunning(true);
+            isRunningRef.current = true;
+            setIsRunning(isRunningRef.current);
             setCurrentBeat(-3);
-            setStartTime(Date.now() + millisecondsPerBeat * 4);
+            startTimeRef.current = Date.now() + millisecondsPerBeat * 4;
+            setStartTime(startTimeRef.current);
 
             setTimeout(() => {
                 setCurrentBeat(0);
+                handleAnimation();
             }, 4 * millisecondsPerBeat);
-
-            console.log("intervalRef.current before starting:", intervalRef.current);
-            if (intervalRef.current === null) {
-                intervalRef.current = setInterval(() => {
-                    handleAnimation();
-                    console.log("Interval Running");
-                }, 100);
-            }
         };
 
-        const stopAnimation = () => {
-            if (intervalRef.current !== null) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
-            }
-        }
+        const addLine = line => {
+            lines.current = [...lines.current, line];
+        };
+
+        const addHit = hit => {
+            this.hits = [...this.hits, hit];
+        };
 
         const handleKeyDown = (key) => {
             if (key.code !== "Space") return;
-            if (!isRunning) {
+            if (!isRunningRef.current) {
                 handleStart();
             } else if (currentBeat > 0) {
-                const tapTime = Date.now();
-                const expectedTime = startTime + currentBeat * millisecondsPerBeat;
-                const offset = tapTime - expectedTime;
-                setLines((prev) => [...prev, { color: 'red', x: WIDTH }]);
-                console.log(lines);
-                setDeviation((prev) => [...prev, offset]);
-                App.addToScore(offset);
+                let tapTime = Date.now();
+                tapTime += this.offset;
+                const expectedTime = startTimeRef.current + currentBeat * millisecondsPerBeat;
+                let err = tapTime - expectedTime;
+                addLine({ color: 'green', x: WIDTH });
+                addHit({ color: 'green', x : (tapTime - startTimeRef.current) / totalTime * WIDTH });
+                setDeviation((prev) => [...prev, err]);
                 setCount(count + 1);
-                // console.log(`偏差：${offset-avgscore} 毫秒`);
+                console.log(`偏差：${err} 毫秒`);
+                if (Math.abs(err) < 80) {
+                    this.score += scoreEachNote;
+                } else if (Math.abs(err) < 300) {
+                    this.score += scoreEachNote * 0.65;
+                } else {
+                    this.score -= scoreEachNote;
+                }
             }
         };
 
@@ -173,14 +203,15 @@ class App {
             window.addEventListener("keydown", handleKeyDown);
             return () => {
                 window.removeEventListener("keydown", handleKeyDown);
-                stopAnimation();
             };
         }, [startTime, currentBeat, millisecondsPerBeat]);
 
         useEffect(() => {
             if (currentBeat >= bars * 4) {
-                setIsRunning(false);
                 alert("TIME'S UP!");
+                isRunningRef.current = false;
+                setIsRunning(isRunningRef.current);
+                cancelAnimationFrame(frameID);
                 navigate("/Result", { state: { deviations: deviation } });
             }
         }, [currentBeat, bars, deviation, navigate]);
@@ -210,13 +241,22 @@ class App {
     };
 
     static Result = () => {
-        let avgscore = App.score + (App.bars * 4 - App.count) * 200 / (App.bars * 4);
-
+        const canvasRef = useRef();
+        // console.log(this.hits);
+        this.hits.forEach((line) => {
+            drawLine(canvasRef, line, true);
+            console.log("drawing line", line);
+        });
         return (
-            <div>
-                <h1>YOUR SCORE IS...?</h1>
-                {/* <p>{avgscore<0?-avgscore:avgscore}</p> */}
-            </div>
+            <>
+                <div>
+                    <h1>YOUR SCORE IS...?</h1>
+                    <h1>{this.score < 0? 0 : this.score}</h1>
+                </div>
+                <div>
+                    <Canvas ref={canvasRef} width={WIDTH} height={HEIGHT} />
+                </div>
+            </>
         );
     };
 
