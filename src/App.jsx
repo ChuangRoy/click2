@@ -18,7 +18,9 @@ const playSounds2 = () => {
 
 const drawLine = (canvasRef, line, debug = false) => {
     if (canvasRef.current) {
-        canvasRef.current.drawLine(line.x, 0, line.x, HEIGHT, line.color, 4, debug);
+        if (0 <= line.x && line.x <= WIDTH) {
+            canvasRef.current.drawLine(line.x, 0, line.x, HEIGHT, line.color, 4, debug);
+        }
     }
 }
 
@@ -119,9 +121,9 @@ class App {
                         playSounds2();
                     }
                     beatCount++;
-                    addLine({ color: 'red', x: WIDTH });
+                    addLine({ color: 'red', x: WIDTH  - (App.offset / 1000) * WIDTH });
                     if (beatCount > 0) {
-                        addHit({ color: 'red', x: (beatCount / (bars * 4)) * WIDTH });
+                        addHit({ color: 'red', x: (beatCount / (bars * 4)) * WIDTH - (App.offset) / totalTime * WIDTH });
                     }
                     setCurrentBeat((prev) => prev + 1);
                 }, millisecondsPerBeat);
@@ -191,13 +193,17 @@ class App {
                 err = Number(err.toFixed(2));
                 addLine({ color: 'green', x: WIDTH });
                 addHit({ color: 'green', x: (tapTime - startTimeRef.current) / totalTime * WIDTH });
-                setDeviation((prev) => [...prev, err]);
+                setDeviation((prev) => [...prev, (err > 0)? "+" + err : err]);
                 setCount(count + 1);
                 console.log(`偏差：${err} 毫秒`);
-                if (Math.abs(err) < 40) {
+                if (Math.abs(err) < 25) {
                     this.score += scoreEachNote;
+                } else if (Math.abs(err) < 35) {
+                    this.score += scoreEachNote * 0.8;
+                } else if (Math.abs(err) < 40) {
+                    this.score += scoreEachNote * 0.6;
                 } else if (Math.abs(err) < 80) {
-                    this.score += scoreEachNote * 0.65;
+                    this.score += scoreEachNote * 0.4;
                 } else {
                     this.score -= scoreEachNote;
                 }
@@ -281,7 +287,7 @@ class App {
             <>
                 <div>
                     <h1>YOUR SCORE IS...?</h1>
-                    <h1><NumberText value={App.score < 0 ? 0 : App.score} /></h1>
+                    <h1><NumberText value={App.score < 0 ? 0 : App.score.toFixed(2)} /></h1>
                     <button onClick={() => navigate("/Home")}>go home</button>
                     <button onClick={StartAgain}>test again</button>
                 </div>
